@@ -13,30 +13,32 @@ class GTCNConv(MessagePassing):
     def __init__(self):
         super().__init__(aggr='add')
 
-    def forward(self, H, Z, edge_index):
+    def forward(self, H, Z, A1_edge_index, A1, A2):
         """
         Args:
             H: previous node embeddings (N,F)
             Z: MLP(x) where x is initial embedding (N,F)
             edge_index: edge list (2,E)
+            A1_edge_index, A1, A2: view the commented code for more detail
+            (I want to keep this commented code after it was moved to GTCN for these 3 variables to be computed once every forward())
 
         Returns:
             (N,F): new embedding - equation (9) from the paper
         """
-        # add self-loops
-        edge_index, _ = add_self_loops(edge_index, num_nodes=H.size(0))  # (2,E) -> (2,E+N)
+        # # add self-loops
+        # edge_index, _ = add_self_loops(edge_index, num_nodes=H.size(0))  # (2,E) -> (2,E+N)
 
-        # compute normalization
-        row, col = edge_index  # row is source nodes, col is dst nodes, both are (E+N,)
-        deg = degree(col, H.size(0), dtype=H.dtype)
-        deg_inv_sqrt = deg.pow(-0.5)
-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]  # (E+N,)
+        # # compute normalization
+        # row, col = edge_index  # row is source nodes, col is dst nodes, both are (E+N,)
+        # deg = degree(col, H.size(0), dtype=H.dtype)
+        # deg_inv_sqrt = deg.pow(-0.5)
+        # norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]  # (E+N,)
 
-        # get A1 and A2 in equation (9)
-        self_loop_mask = row == col  # (E+N,)
-        A2 = norm[self_loop_mask]  # (N,) -- A2[i] = A[i,i]
-        A1 = norm[~self_loop_mask]  # (E,)
-        A1_edge_index = edge_index[:, ~self_loop_mask]  # (2,E) -- the original edge index without added self-loops
+        # # get A1 and A2 in equation (9)
+        # self_loop_mask = row == col  # (E+N,)
+        # A2 = norm[self_loop_mask]  # (N,) -- A2[i] = A[i,i]
+        # A1 = norm[~self_loop_mask]  # (E,)
+        # A1_edge_index = edge_index[:, ~self_loop_mask]  # (2,E) -- the original edge index without added self-loops
         
         # propagating messages
         out = self.propagate(A1_edge_index, x=H, norm=A1)  # (N,F)
@@ -66,12 +68,27 @@ class GTCN(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(dropout)
 
+    def _precompute_norm(self, edge_index, num_nodes, dtype):
+        edge_index, _ = add_self_loops(edge_index, num_nodes=num_nodes)
+        row, col = edge_index
+        deg = degree(col, num_nodes, dtype=dtype)
+        deg_inv_sqrt = deg.pow(-0.5)
+        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+
+        self_loop_mask = row == col
+        A2 = norm[self_loop_mask]
+        A1 = norm[~self_loop_mask]
+        A1_edge_index = edge_index[:, ~self_loop_mask]
+        return A1_edge_index, A1, A2
+
     def forward(self, x, edge_index):
+        A1_edge_index, A1, A2 = self._precompute_norm(edge_index, x.shape[0], x.dtype)
+        
         z = self.relu(self.mlp1(self.dropout(x)))
         z = self.mlp2(self.dropout(z))
         h = z
         for conv, bn in zip(self.convs, self.bns):
-            h = conv(h, z, edge_index)
+            h = conv(h, z, A1_edge_index, A1, A2)
             h = bn(h)
 
         h = self.dropout(self.relu(h))
