@@ -18,7 +18,7 @@ class GCN(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.residual_proj = nn.Linear(in_channels, hidden_channels) if skip else None
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, return_layer=None):
         for i, (conv, bn) in enumerate(zip(self.conv_layers, self.bn_layers)):
             identity = x
             if self.residual_proj is not None and i == 0:
@@ -29,5 +29,7 @@ class GCN(nn.Module):
                 x = x + identity
             x = self.relu(x)
             x = self.dropout(x)
+            if return_layer == i:
+                return x
         logits = self.classifier(x, edge_index)
         return logits
