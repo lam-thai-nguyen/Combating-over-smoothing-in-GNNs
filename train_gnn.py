@@ -73,7 +73,6 @@ def train(gnn, graph, split_idx, optimizer, loss_fn, epochs, best_checkpoint_dir
             torch.save({
                 "epoch": i,
                 "model_state_dict": gnn.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
                 "train_history": train_history,
                 "val_history": val_history,
                 "acc_history": acc_history,
@@ -84,7 +83,6 @@ def train(gnn, graph, split_idx, optimizer, loss_fn, epochs, best_checkpoint_dir
     torch.save({
         "epoch": epochs,
         "model_state_dict": gnn.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
         "train_history": train_history,
         "val_history": val_history,
         "acc_history": acc_history,
