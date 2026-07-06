@@ -2,7 +2,7 @@ import yaml
 import torch
 from ogb.nodeproppred import Evaluator
 from models import MLP
-from utils import num_params, load_dataset
+from utils import num_params, load_dataset, tnse
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -39,17 +39,19 @@ def evaluate(model, x, y, split_idx):
 
 
 if __name__ == "__main__":
-    graph, split_idx = load_dataset()
+    data, split_idx = load_dataset()
     
     # Select a config path only, other arguments are automatically derived
-    config_path = "configs/mlp_layers1.yaml"
+    config_path = "configs/baseline/mlp.yaml"
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     checkpoint = torch.load(cfg['best_checkpoint_dir'], map_location=DEVICE)
-    mlp = MLP(cfg['in_channels'], cfg['out_channels'], cfg['d_model'], cfg['layers'], cfg['dropout'])
+    mlp = MLP(cfg['in_channels'], cfg['out_channels'], cfg['hidden_channels'], cfg['layers'], cfg['dropout'])
     print("num params:", num_params(mlp))
     mlp.load_state_dict(checkpoint["model_state_dict"])
 
-    train_acc, valid_acc, test_acc = evaluate(mlp, graph.x, graph.y, split_idx)
+    train_acc, valid_acc, test_acc = evaluate(mlp, data.x, data.y, split_idx)
     print(f"train accuracy {train_acc*100:.2f}%\t val accuracy {valid_acc*100:.2f}%\t test accuracy {test_acc*100:.2f}%\t")
+
+    tnse(mlp, 1, data, 100)
