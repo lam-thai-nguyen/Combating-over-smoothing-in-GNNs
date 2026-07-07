@@ -3,22 +3,45 @@ from torch_geometric.nn import GCNConv
 
 
 class GCN(nn.Module):
-    def __init__(self, in_channels=128, out_channels=40, hidden_channels=256, num_layers=3, dropout=0.5, skip=False):
+    def __init__(self, in_channels=128, out_channels=40, hidden_channels=256, num_layers=3, dropout=0.5, skip=False, mlp=False):
         super().__init__()
 
+        self.mlp = mlp
+        self.relu = nn.ReLU(inplace=True)
+        self.dropout = nn.Dropout(p=dropout)
+
+        # pre-MLP and post-MLP
+        if mlp:
+            self.pre_mlp = nn.Sequential(nn.Linear(in_channels, hidden_channels), nn.ReLU(inplace=True), nn.Dropout(dropout))
+            self.post_mlp = nn.Sequential(
+                nn.Linear(out_channels, hidden_channels),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_channels, out_channels),
+            )
+            gnn_in_channels = hidden_channels
+        else:
+            self.pre_mlp = None
+            self.post_mlp = None
+            gnn_in_channels = in_channels
+
+        # GNN stack
         self.conv_layers = nn.ModuleList()
         self.bn_layers = nn.ModuleList()
-        self.conv_layers.append(GCNConv(in_channels, hidden_channels, cached=True))
+        self.conv_layers.append(GCNConv(gnn_in_channels, hidden_channels, cached=True))
         self.bn_layers.append(nn.BatchNorm1d(hidden_channels))
         for _ in range(num_layers-2):
             self.conv_layers.append(GCNConv(hidden_channels, hidden_channels, cached=True))
             self.bn_layers.append(nn.BatchNorm1d(hidden_channels))
-        self.classifier = GCNConv(hidden_channels, out_channels, cached=True)
-        self.relu = nn.ReLU(inplace=True)
-        self.dropout = nn.Dropout(p=dropout)
-        self.residual_proj = nn.Linear(in_channels, hidden_channels) if skip else None
+        self.conv_layers.append(GCNConv(hidden_channels, out_channels, cached=True))
+
+        # Skip connection projection
+        self.residual_proj = nn.Linear(gnn_in_channels, hidden_channels) if skip else None
 
     def forward(self, x, edge_index, return_layer=None):
+        if self.pre_mlp is not None:
+            x = self.pre_mlp(x)
+
         for i, (conv, bn) in enumerate(zip(self.conv_layers, self.bn_layers)):
             identity = x
             if self.residual_proj is not None and i == 0:
@@ -31,5 +54,10 @@ class GCN(nn.Module):
             x = self.dropout(x)
             if return_layer == i:
                 return x
-        logits = self.classifier(x, edge_index)
+            
+        logits = self.conv_layers[-1](x, edge_index)
+        if self.post_mlp is not None:
+            logits = self.post_mlp(logits)
+
         return logits
+    
