@@ -63,7 +63,6 @@ class GTCN(nn.Module):
         self.mlp1 = nn.Linear(in_channels, hidden_channels)
         self.mlp2 = nn.Linear(hidden_channels, hidden_channels)
         self.convs = nn.ModuleList([GTCNConv() for _ in range(num_layers)])
-        self.bns = nn.ModuleList([nn.BatchNorm1d(hidden_channels) for _ in range(num_layers)])
         self.classifier = nn.Linear(hidden_channels, out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(dropout)
@@ -81,18 +80,16 @@ class GTCN(nn.Module):
         A1_edge_index = edge_index[:, ~self_loop_mask]
         return A1_edge_index, A1, A2
 
-    def forward(self, x, edge_index, return_layer=None):
+    def forward(self, x, edge_index):
         A1_edge_index, A1, A2 = self._precompute_norm(edge_index, x.shape[0], x.dtype)
         
         z = self.relu(self.mlp1(self.dropout(x)))
         z = self.mlp2(self.dropout(z))
         h = z
-        for i, (conv, bn) in enumerate(zip(self.convs, self.bns)):
+        for conv in self.convs:
             h = conv(h, z, A1_edge_index, A1, A2)
-            h = bn(h)
-            if return_layer == i:
-                return x
 
         h = self.dropout(self.relu(h))
         logits = self.classifier(h)
         return logits
+    
