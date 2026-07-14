@@ -30,7 +30,6 @@ def degree_distribution(edge_index):
     plt.ylabel('Count (log)')
     plt.savefig("degree_distribution.jpg", dpi=150, bbox_inches="tight")
     print("✅ Saved degree_distribution.jpg")
-
     print(f"Mean degree: {deg.mean():.2f}, Max degree: {deg.max()}, Median: {np.median(deg)}")
 
 def label_distribution(y):
@@ -38,7 +37,7 @@ def label_distribution(y):
     Plots and saves a bar plot showing the frequency of each class
 
     Args:
-        y (np.ndarray): The label array for every example
+        y (np.ndarray): The label array of the graph
 
     Returns:
         None
@@ -50,15 +49,14 @@ def label_distribution(y):
     plt.ylabel('Number of nodes')
     plt.savefig("label_distribution.jpg", dpi=150, bbox_inches="tight")
     print("✅ Saved label_distribution.jpg")
-
     print(f"Largest class: {class_counts.max()} nodes, Smallest: {class_counts.min()} nodes")
 
 def temporal_structure(split_idx):
     """
-    Plots and saves the frequency of each node in each year
+    Plots and saves the node count per year
 
     Args:
-        split_idx (dict): Refer to https://ogb.stanford.edu/docs/nodeprop/#pyg
+        split_idx (dict): contains the train, validation, and test indices for the nodes in the graph
     
     Returns:
         None
@@ -76,7 +74,7 @@ def temporal_structure(split_idx):
 
 def tsne(subsample, num_nodes):
     """
-    Use t-SNE to map nodes from high-dimensional space to 2. Plots and saves the 2d nodes to see how separable classes are based on node features.
+    Plots and saves the 2d nodes to see how separable classes are based on node features.
 
     Args:
         subsample (int): number of nodes to sample from all nodes
@@ -106,7 +104,7 @@ def homophily(edge_index, y):
 
     Args:
         edge_index (np.ndarray): The edge list of the graph
-        y (np.ndarray): The label array for every example
+        y (np.ndarray): The label array of the graph
 
     Returns:
         None
@@ -130,3 +128,4 @@ if __name__ == "__main__":
     temporal_structure(split_idx)
     tsne(subsample=10000, num_nodes=num_nodes)
     homophily(edge_index, y)
+    
